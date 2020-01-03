@@ -100,15 +100,6 @@ performance(p_test, "auc")@y.values
 #===============================================================================
 
 #==================================決策樹==========================================
-cart.model<- rpart(is_promoted ~ no_of_trainings + previous_year_rating + age + length_of_service + KPIs_met..80. + awards_won. + avg_training_score , 
-                   data=promotion_rmNA)
-
-prp(cart.model,         # 模型
-    faclen=0,           # 呈現的變數不要縮寫
-    shadow.col="gray",  # 最下面的節點塗上陰影
-    extra = 1
-)  
-
 cart.model<- rpart(is_promoted ~ . - employee_id- genderf-genderm- recruitment_channelother- recruitment_channelother- recruitment_channelreferred- recruitment_channelsourcing, 
                    data=Train_dummy,
                    method = "class")
