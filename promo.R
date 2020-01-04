@@ -4,6 +4,7 @@ library(lattice)
 library(rattle)
 library(gplots)
 library(ROCR)
+library(randomForest)
 
 require(mice)
 require(dummies)  # 轉換虛擬變數的套件
@@ -11,6 +12,8 @@ require(rpart)
 require(rpart.plot) 
 require(caret)
 require(e1071)
+require(neuralnet) # for neuralnet(), nn model
+require(nnet)      # for class.ind()
 
 # 讀取 csv
 promotion <- read.csv("D:/DM/final/promotion/promotion.csv")
@@ -47,14 +50,55 @@ boxplot(formula = avg_training_score ~ no_of_trainings, # Y ~ X (代表X和Y軸�
         ylab = "avg_training_score",    # Y軸名稱
         col ="gray")$out
 
-# 機率密度圖
-qplot(x=is_promoted,                             
-      data=promotion,                     
-      geom="density",        # 圖形=density
-      xlab="is_promoted",                         
-      color= is_promoted           # 以顏色標註月份，複合式的機率密度圖
-)
-# 升遷和性別
+# is_promoted 長條圖
+hist(x=promotion$is_promoted, 
+     main="Histogram of is_promoted",         # 圖片的名稱
+     xlab="is_promoted",                      # X軸的名稱
+     ylab="Number")                  # Y軸的名稱
+
+# id 長條圖
+hist(x=promotion$employee_id, 
+     main="Histogram of employee_id",         # 圖片的名稱
+     xlab="employee_id",                      # X軸的名稱
+     ylab="Number")                  # Y軸的名稱
+
+# no_of_training  長條圖
+hist(x=promotion$employee_id, 
+     main="Histogram of employee_id",         # 圖片的名稱
+     xlab="employee_id",                      # X軸的名稱
+     ylab="Number")                  # Y軸的名稱
+
+# age 長條圖
+hist(x=promotion$age, 
+     main="Histogram of age ",         # 圖片的名稱
+     xlab="age ",                      # X軸的名稱
+     ylab="Number")                  # Y軸的名稱
+# previous_year_rating 長條圖
+hist(x=promotion$previous_year_rating, 
+     main="Histogram of previous_year_rating",         # 圖片的名稱
+     xlab="previous_year_rating",                      # X軸的名稱
+     ylab="Number")                  # Y軸的名稱
+# length_of_service 長條圖
+hist(x=promotion$length_of_service, 
+     main="Histogram of length_of_service",         # 圖片的名稱
+     xlab="length_of_service",                      # X軸的名稱
+     ylab="Number")                  # Y軸的名稱
+# KPIs_met..80. 長條圖
+hist(x=promotion$KPIs_met..80., 
+     main="Histogram of KPIs_met..80.",         # 圖片的名稱
+     xlab="KPIs_met..80.",                      # X軸的名稱
+     ylab="Number")                  # Y軸的名稱
+# awards_won. 長條圖
+hist(x=promotion$awards_won., 
+     main="Histogram of awards_won.",         # 圖片的名稱
+     xlab="awards_won.",                      # X軸的名稱
+     ylab="Number")                  # Y軸的名稱
+
+# avg_training_score 長條圖
+hist(x=promotion$avg_training_score, 
+     main="Histogram of avg_training_score",         # 圖片的名稱
+     xlab="avg_training_score",                      # X軸的名稱
+     ylab="Number")                  # Y軸的名稱# 升遷和性別
 Probs_1 <- as.data.frame(prop.table(table(promotion$is_promoted, promotion$gender), 1))
 ggplot(Probs_1, aes(x = Var2, y = Freq, fill = Var1)) + geom_bar(stat = "identity", position = "fill", color = "black") + theme_bw() +
   scale_fill_brewer(palette = "Dark2") + labs( x = "gender", y = "promotion", fill = "promotion", title = "Relationship between promotion and gender")
@@ -192,5 +236,58 @@ train_control.model <- train(is_promoted ~ . ,
 train_control.model
 # Acc =  0.9229857 
 #==============================================================================================
+#=================================隨機森林======================================================
+set.seed(123)
+# model
+m1 <- randomForest(
+  formula = is_promoted ~ .,
+  data    = Train_new
+)
+m1 # Acc = 0.9399
+
+plot(m1)
+
+prediction <- predict(m1, subset(Test_new, select = - is_promoted))#預測
+
+cmRF <- table(Test_new$is_promoted, prediction, dnn = c("實際", "預測"))
+cmRF
+#正確率
+#計算猜升值正確率
+cmRF[2,2] / sum(cmRF[, 2])
+
+#計算猜不升值正確率
+cmRF[1] / sum(cmRF[, 1])
+
+#整體準確率(取出對角/總數)
+accuracyRF <- sum(diag(cmRF)) / sum(cmRF)
+accuracyRF # 0.9434389
+#===================================================================================================
+#============================================NN=====================================================
+promotion_importantArg$is_promoted<-as.integer(as.character(promotion_importantArg$is_promoted))
+promotion_importantArg$previous_year_rating<-as.integer(as.character(promotion_importantArg$previous_year_rating))
+alldummy_important <- dummy.data.frame(promotion_importantArg)
+set.seed(107)
+Index <- createDataPartition(alldummy_important$is_promoted, p = 0.75, list = F)
+Train_dummy_imp <- alldummy_important[Index,]
+Test_dummy_imp <- alldummy_important[-Index,]
+
+# 確認column name 合理
+colnames(Train_dummy_imp) <- make.names(colnames(Train_dummy_imp))
+# 確認column name 合理
+colnames(Test_dummy_imp) <- make.names(colnames(Test_dummy_imp))
+
+Train_dummy_imp <- scale(Train_dummy_imp , center=T,scale=T)
+Test_dummy_imp <- scale(Test_dummy_imp, center=T,scale=T)
 
 
+str(Train_dummy_imp)
+
+bpn <- neuralnet(formula = is_promoted ~ ., 
+                 data = Train_dummy_imp,
+                 hidden = c(4,3),     # 第一隱藏層1個node，第二隱藏層2個nodes
+                 learningrate = 0.005, # learning rate
+                 threshold = 0.01,    # partial derivatives of the error function, a stopping criteria
+                 stepmax = 5e5,        # 最大的ieration數 = 500000(5*10^5)
+                 linear.output = F
+)
+plot(bpn)
